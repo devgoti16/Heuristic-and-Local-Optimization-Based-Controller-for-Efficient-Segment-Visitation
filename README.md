@@ -1,9 +1,8 @@
-# 🤖 Heuristic and Local-Optimization-Based Controller for Efficient Segment Visitation
+#Heuristic and Local-Optimization-Based Controller for Efficient Segment Visitation
 
 **Short Description:**  
 Combines heuristic nearest-neighbor planning with local 2-opt optimization for path refinement.
 
--# Heuristic and Local-Optimization-Based Controller for Efficient Segment Visitation
 
 ## 🔹 Overview
 
