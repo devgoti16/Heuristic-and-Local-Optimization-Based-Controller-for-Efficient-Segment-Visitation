@@ -3,176 +3,91 @@
 **Short Description:**  
 Combines heuristic nearest-neighbor planning with local 2-opt optimization for path refinement.
 
----
+-# Heuristic and Local-Optimization-Based Controller for Efficient Segment Visitation
 
-## 🧭 Overview
+## 🔹 Overview
 
-This project implements an **autonomous controller** for a simulated robot in **ROS 2** that efficiently visits multiple target line segments.  
-It combines **heuristic planning** and **local optimization** to minimize traversal time and reduce unnecessary turns while ensuring complete coverage of all segments.
+This controller is designed for a **simulated robot in ROS 2** that must traverse multiple target line segments.
+It integrates **heuristic planning** with **local optimization** to efficiently plan and execute the robot's path.
+The controller uses **ROS 2 topics** for robot pose (`/pose`), unvisited segments (`/unvisited_targets`), and publishes velocity commands (`/cmd_vel`).
 
-The controller interacts with the provided **sim2** simulator to visualize the robot, its path, and visited/unvisited targets in **RViz 2**.
+A **screenshot** of the robot in RViz visualizing the path is included below.
 
----
-
-## ⚙️ Key Features
-
-- **Heuristic Nearest-Neighbor Planning** – Quickly determines an initial visiting order for segments.  
-- **2-Opt Local Optimization** – Refines the route to reduce overall path length.  
-- **Smart Segment Crossing** – Chooses the optimal crossing point (not always endpoints) to minimize heading changes.  
-- **Smooth Motion Control** – Proportional velocity control for linear and angular movement with minimal oscillation.  
-- **ROS 2 Integration** – Uses publishers, subscribers, and services (`/pose`, `/cmd_vel`, `/unvisited_targets`, `/reset`).  
-- **RViz 2 Visualization** – Displays robot path, visited segments, and traversal trail.
+![Traversal Screenshot](image.png)
 
 ---
 
-## 🧩 System Architecture
+## 🔹 Full Logic and Workflow
 
-```
-+-------------------------+
-|      Controller Node    |
-|-------------------------|
-| Subscribes:             |
-|  • /pose                |
-|  • /unvisited_targets   |
-| Publishes:              |
-|  • /cmd_vel             |
-| Calls Service:          |
-|  • /reset               |
-+-------------------------+
-           |
-           v
-+-------------------------+
-|         sim2            |
-|  (Simulation Node)      |
-| Publishes visualization |
-|  markers & robot state  |
-+-------------------------+
-```
+### **1. Target Acquisition**
 
----
+* Subscribe to `/unvisited_targets` to receive all segment endpoints.
+* Consecutive points are paired to form line segments.
+* Segments are stored as a list: `[[(x1,y1),(x2,y2)], [(x3,y3),(x4,y4)], ...]`
 
-## 🧠 Algorithm Workflow
+### **2. Heuristic Planning (Nearest-Neighbor)**
 
-1. **Acquire Targets**  
-   Subscribe to `/unvisited_targets` for all segment endpoints.
+* Robot starts at current pose `(x_r, y_r)`.
+* Iteratively selects the nearest unvisited segment endpoint using **Euclidean distance**:
+  [
+  d = \sqrt{(x_r - x_s)^2 + (y_r - y_s)^2}
+  ]
+* Produces a **fast initial visiting order** for all segments.
+* This step ensures the robot does not make long unnecessary detours.
 
-2. **Form Segments**  
-   Pair consecutive endpoints to form line segments.
+### **3. Local Optimization (2-Opt Algorithm)**
 
-3. **Heuristic Planning**  
-   Start at the nearest segment to the robot and iteratively choose the nearest unvisited segment.
+* The initial path from nearest-neighbor is refined using **2-opt swaps**.
+* For segments `i` and `j`, a swap is applied if it reduces total path distance:
+  [
+  D_\text{total,new} = \sum_{k} d_{k,k+1} < D_\text{total,old}
+  ]
+* This reduces overall traversal distance and minimizes backtracking.
 
-4. **Local Optimization (2-Opt)**  
-   Apply 2-opt swaps to improve total path efficiency.
+### **4. Segment Crossing and Execution**
 
-5. **Execution**  
-   For each segment:
-   - Select an execution point minimizing:  
-     `Cost = TURN_WEIGHT * heading_change + DIST_WEIGHT * distance`
-   - Align heading and move smoothly toward it.
+* For each segment, the **optimal crossing point** `P` is selected to minimize a combined cost of heading change and distance:
+  [
+  \text{Cost}(P) = W_\text{turn} \cdot \Delta \theta + W_\text{dist} \cdot d
+  ]
+  Where:
 
-6. **Completion**  
-   Stop when all segments are crossed.
+* `Δθ` = heading change required to reach `P`
 
----
+* `d` = distance from current robot position
 
-## 🚀 Run Instructions
+* `W_turn`, `W_dist` = configurable weights for rotation vs distance
 
-### 1️⃣ Setup ROS 2 Workspace
-```bash
-mkdir -p ~/ros2_ws/src
-cd ~/ros2_ws/src
-```
+* **Motion Control**:
 
-### 2️⃣ Clone Packages
-```bash
-# sim2 package (provided for the course)
-git clone <path_or_link_to_sim_package>
+  * Linear velocity: `v = K_linear * d_target`
+  * Angular velocity: `ω = K_angular * Δθ`
+  * Smooth control ensures minimal oscillation while moving toward `P`
 
-# this controller
-git clone https://github.com/<your-username>/segment-visitation-controller.git
-```
+* **Segment Completion**: segment is marked visited when robot is within a distance threshold and heading alignment is achieved.
 
-### 3️⃣ Build and Source
-```bash
-cd ~/ros2_ws
-colcon build
-source install/setup.bash
-```
+### **5. Path Execution Summary**
 
-### 4️⃣ Launch Simulation and Controller
-In **Terminal 1**:
-```bash
-ros2 run sim sim2 --ros-args -p targets:=<target_file_name>
-```
+1. Acquire all targets from simulator.
+2. Form segments by pairing consecutive endpoints.
+3. Plan initial path using nearest-neighbor heuristic.
+4. Refine path with 2-opt optimization.
+5. For each segment, select optimal crossing point minimizing heading change + distance.
+6. Command robot to move using smooth proportional velocity control.
+7. Mark segment as visited and continue until all segments are completed.
 
-In **Terminal 2**:
-```bash
-ros2 run segment_visitation controller
-```
+### **6. Visualization in RViz**
 
----
+* Robot model shows current pose.
+* Markers show all segments, highlighting visited vs unvisited.
+* Path trace shows trajectory.
 
-## 🧪 Visualization in RViz 2
+![Traversal Screenshot](assets/rviz_mid.png)
 
-Add these displays:
-- **RobotModel** → shows the simulated robot.  
-- **MarkerArray (/sim_markers)** → shows line segments and traversal history.  
-- **Path Trace** → displays robot movement.
+### **7. Key Equations**
 
----
+* **Distance to segment endpoint**:
+  [ d = \sqrt{(x_r - x_s)^2 + (y_r - y_s)^2} ]
 
-## 📸 Example Screenshots
-
-| Description | Screenshot |
-|--------------|-------------|
-| **Initial Setup** – Robot and unvisited targets | ![Initial Setup](assets/rviz_initial.png) |
-| **During Traversal** – Robot crossing segments | ![Mid Execution](assets/rviz_mid.png) |
-| **Completed Path** – All segments visited efficiently | ![Completed Path](assets/rviz_complete.png) |
-
-> *(Save your screenshots from RViz as PNGs in an `assets/` folder.)*
-
----
-
-## 🧮 Configuration Parameters
-
-| Parameter | Meaning | Default |
-|------------|----------|----------|
-| `CONTROL_RATE_HZ` | Control loop frequency | 20 Hz |
-| `DIST_THRESHOLD` | Distance to mark a segment as reached | 0.05 m |
-| `ANGLE_THRESHOLD` | Heading error before rotation priority | 0.1 rad |
-| `TURN_WEIGHT` | Cost weight per radian turn | 6.0 |
-| `DIST_WEIGHT` | Cost weight per meter travel | 1.0 |
-| `MAX_LINEAR_SPEED` | Maximum forward speed | 25 m/s |
-| `MAX_ANGULAR_SPEED` | Maximum rotational speed | 25 rad/s |
-
----
-
-## 📚 Dependencies
-
-- ROS 2 (Humble / Iron)
-- Python ≥ 3.8  
-- `rclpy`, `geometry_msgs`, `sensor_msgs`, `std_srvs`  
-- `tf2_ros` (via sim2 package)
-
----
-
-## 🧑‍💻 Author
-
-**Dev Pankajbhai Goti**  
-CSCE 452/752 – Robotics and Spatial Intelligence, Fall 2025  
-University of South Carolina  
-
----
-
-## 🏁 Acknowledgments
-
-- **Instructor:** Dr. Jason M. O’Kane  
-- **Simulation:** Provided `sim2` package for ROS 2.
-
----
-
-## 🧠 Summary
-
-This project demonstrates a controller that integrates **heuristic planning** with **local optimization** to efficiently visit all target segments while minimizing unnecessary rotation and travel distance.  
-It showcases practical skills in **motion planning, control design, and ROS 2 integration**, making it a standout project for any robotics portfolio.
+* **Segment crossing cost**:
+  [ \text{Cost}(P) = W_\text{turn}
