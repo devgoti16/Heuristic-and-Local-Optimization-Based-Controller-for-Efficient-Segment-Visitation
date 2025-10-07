@@ -11,10 +11,6 @@ This controller is designed for a **simulated robot in ROS 2** that must travers
 It integrates **heuristic planning** with **local optimization** to efficiently plan and execute the robot's path.
 The controller uses **ROS 2 topics** for robot pose (`/pose`), unvisited segments (`/unvisited_targets`), and publishes velocity commands (`/cmd_vel`).
 
-A **screenshot** of the robot in RViz visualizing the path is included below.
-
-![Traversal Screenshot](image.png)
-
 ---
 
 ## 🔹 Full Logic and Workflow
@@ -82,12 +78,5 @@ A **screenshot** of the robot in RViz visualizing the path is included below.
 * Markers show all segments, highlighting visited vs unvisited.
 * Path trace shows trajectory.
 
-![Traversal Screenshot](assets/rviz_mid.png)
+![Traversal Screenshot](image.png)
 
-### **7. Key Equations**
-
-* **Distance to segment endpoint**:
-  [ d = \sqrt{(x_r - x_s)^2 + (y_r - y_s)^2} ]
-
-* **Segment crossing cost**:
-  [ \text{Cost}(P) = W_\text{turn}
